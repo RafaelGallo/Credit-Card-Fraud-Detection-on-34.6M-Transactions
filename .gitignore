@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Dados e modelos pesados: ficam só na máquina (o CSV tem ~10 GB e o GitHub recusa arquivos acima de 100 MB).
+# O deploy usa apenas models/modelo_final.joblib e output/transacoes_novas.csv.
+input/
+models/*
+!models/modelo_final.joblib
