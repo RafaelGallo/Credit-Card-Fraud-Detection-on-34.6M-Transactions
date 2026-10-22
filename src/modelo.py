@@ -7,6 +7,7 @@ modelo, limiar de custo, codificador das categorias e as listas de colunas.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import joblib
@@ -50,9 +51,17 @@ def amostrar_base(n: int, caminho: Path = CAMINHO_BASE, semente: int = 42, taman
     return amostra.reset_index(drop=True)
 
 
-def carregar_pacote(caminho: Path = CAMINHO_MODELO) -> dict:
+def caminho_modelo() -> Path:
+    """Modelo que o app usa: o campeão publicado pela DAG (FRAUDE_MODELO_PATH), se existir; senão o do repositório."""
+    publicado = os.environ.get("FRAUDE_MODELO_PATH")
+    if publicado and Path(publicado).exists():
+        return Path(publicado)
+    return CAMINHO_MODELO
+
+
+def carregar_pacote(caminho: Path | None = None) -> dict:
     """Carrega o pacote salvo no notebook (modelo, limiar, codificador, colunas)."""
-    return joblib.load(caminho)
+    return joblib.load(caminho or caminho_modelo())
 
 
 def colunas_modelo(pacote: dict) -> list[str]:

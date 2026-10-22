@@ -105,8 +105,14 @@ def tabela_do_grafico(df: pd.DataFrame, chave: str) -> None:
 
 
 @st.cache_resource(show_spinner="Carregando o modelo...")
+def _carregar(caminho: str, modificado_em: float) -> dict:
+    """O horário de modificação entra na chave do cache: um modelo novo da DAG é recarregado sozinho."""
+    return ml.carregar_pacote(Path(caminho))
+
+
 def carregar_pacote() -> dict:
-    return ml.carregar_pacote()
+    caminho = ml.caminho_modelo()
+    return _carregar(str(caminho), caminho.stat().st_mtime)
 
 
 @st.cache_data(show_spinner=False, max_entries=2)
@@ -217,9 +223,10 @@ with st.sidebar:
     st.caption("Random Forest para transações de cartão de crédito. Dados de jan/2019 a dez/2020.")
     st.subheader("Regra de decisão")
     limiar = st.slider(
-        "Limiar de alerta", min_value=0.05, max_value=0.99, value=round(pacote["limiar"], 2), step=0.01,
-        help="Transações com score igual ou acima do limiar viram alerta. 0,85 foi o limiar de menor custo "
-             "na validação, assumindo US$ 10 por falso alarme.",
+        "Limiar de alerta", min_value=0.05, max_value=0.99,
+        value=round(round(pacote["limiar"] / 0.005) * 0.005, 3), step=0.005,  # o limiar do modelo, arredondado ao passo
+        help=f"Transações com score igual ou acima do limiar viram alerta. {decimal(pacote['limiar'], 3)} foi o "
+             "limiar de menor custo na validação, assumindo US$ 10 por falso alarme.",
     )
     custo_fp = st.number_input(
         "Custo de revisar um falso alarme (US$)", min_value=0.0, value=float(pacote["custo_falso_alarme"]), step=1.0,
@@ -441,21 +448,22 @@ with aba_sobre:
         "- **Variáveis:** apenas as 9 colunas originais (valor, população da cidade, coordenadas do titular e do "
         "estabelecimento, categoria, gênero e estado). Sem identificadores pessoais e sem variáveis criadas.\n"
         "- **Divisão cronológica:** treino e teste separados no tempo; o teste cobre de 14/08 a 23/12/2020 "
-        "(1.358.781 transações, 6.988 fraudes, 0,51%).\n"
+        "(1.358.891 transações, 7.042 fraudes, 0,52%).\n"
         "- **Desbalanceamento:** undersampling das legítimas (1:10) apenas no treino; validação e teste mantêm a taxa real.\n"
-        "- **Modelo:** Random Forest, o melhor entre 10 algoritmos comparados (PR-AUC no teste de 0,2525, cerca de "
-        "50 vezes a linha de base aleatória de 0,0051). Em seguida os hiperparâmetros foram ajustados e o limiar "
-        "foi escolhido num conjunto de validação separado (PR-AUC de 0,3548 nele; não é comparável ao 0,2525 do teste).\n"
-        "- **Limiar:** escolhido na validação pelo menor custo, assumindo US$ 10 por falso alarme. Resultado: 0,85."
+        "- **Modelo:** Random Forest, o melhor entre 10 algoritmos comparados (PR-AUC no teste de 0,2835, cerca de "
+        "54 vezes a linha de base aleatória de 0,0052). Em seguida os hiperparâmetros foram ajustados (200 árvores, "
+        "profundidade 6, mínimo de 20 linhas por folha) e o limiar foi escolhido num conjunto de validação separado "
+        "(PR-AUC de 0,3625 nele; não é comparável ao 0,2835 do teste).\n"
+        "- **Limiar:** escolhido na validação pelo menor custo, assumindo US$ 10 por falso alarme. Resultado: 0,395."
     )
 
     st.subheader("Resultado no conjunto de teste")
     cenarios = pd.DataFrame(
         [
-            ("Sem modelo", 0, 6988, 0, 3784005, False),
-            ("Random Forest original, corte 0,5", 4943, 2045, 118083, 1427083, False),
-            ("Ajustado, corte 0,5", 6360, 628, 313339, 3163881, False),
-            ("Ajustado, corte por custo (0,85)", 5096, 1892, 31314, 452068, True),
+            ("Sem modelo", 0, 7042, 0, 3810073, False),
+            ("Random Forest original, corte 0,5", 4985, 2057, 120011, 1446207, False),
+            ("Ajustado, corte 0,5", 4843, 2199, 102030, 1290984, False),
+            ("Ajustado, corte por custo (0,395)", 4997, 2045, 108357, 1298802, True),
         ],
         columns=["Cenário", "Fraudes detectadas", "Fraudes perdidas", "Falsos alarmes", "Custo (US$)", "destaque"],
     )
@@ -464,18 +472,20 @@ with aba_sobre:
     for coluna in exibir.columns[1:]:
         exibir[coluna] = exibir[coluna].map(inteiro)
     st.dataframe(exibir, hide_index=True, **LARGURA)
-    st.caption("Custo = valor das fraudes não detectadas + US$ 10 por falso alarme. Números do notebook de modelagem.")
+    st.caption("Custo = valor das fraudes não detectadas + US$ 10 por falso alarme. Números do notebook de modelagem. "
+               "No teste, o corte por custo (escolhido na validação) ficou 0,6% acima do custo do corte 0,5 do modelo "
+               "ajustado: a diferença é pequena.")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Fraudes detectadas", "73%", help="5.096 de 6.988 no teste.")
-    c2.metric("Precisão dos alertas", "14%", help="Cerca de 6 falsos alarmes para cada fraude detectada.")
-    c3.metric("Redução de custo", "88%", help="Em relação a não usar modelo.")
+    c1.metric("Fraudes detectadas", "71%", help="4.997 de 7.042 no teste.")
+    c2.metric("Precisão dos alertas", "4%", help="Cerca de 22 falsos alarmes para cada fraude detectada.")
+    c3.metric("Redução de custo", "66%", help="Em relação a não usar modelo.")
 
     st.subheader("Limitações")
     st.markdown(
         "- **Os dados são sintéticos** (por exemplo, não há fraude acima de ~US$ 1.250 e há titulares de 16 e 17 anos). "
         "Os números não valem como estimativa do mundo real.\n"
-        "- **O valor da compra carrega quase todo o sinal:** um modelo só com `amt` chegou a 0,3350 de PR-AUC na "
-        "validação, contra 0,3548 com as 9 colunas.\n"
+        "- **O valor da compra carrega quase todo o sinal:** um modelo só com `amt` chegou a 0,3366 de PR-AUC na "
+        "validação, contra 0,3625 com as 9 colunas.\n"
         "- **US$ 10 por falso alarme é uma suposição.** Limiar e economia dependem dele; use o painel lateral para testar outros valores.\n"
         "- **Uma única divisão dos dados e semente fixa.** O teste foi consultado mais de uma vez durante a comparação dos modelos.\n"
         "- **Padrões de fraude mudam:** o modelo precisa ser reavaliado periodicamente."

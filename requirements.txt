@@ -1,6 +1,6 @@
 streamlit==1.66.1
-# o modelo foi salvo (pickle) com a 1.6.1; outra versão pode falhar ou dar resultados diferentes
-scikit-learn==1.6.1
+# o modelo foi salvo (pickle) com a 1.5.1; a 1.5.2 é a mesma série e tem pacote para o Python 3.13
+scikit-learn==1.5.2
 joblib>=1.4,<2
 pandas>=2.2.3,<3
 numpy>=1.26.4,<2.3

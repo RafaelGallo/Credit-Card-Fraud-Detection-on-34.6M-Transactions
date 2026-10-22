@@ -233,3 +233,12 @@ retreino/modelo_final/
 retreino/*.ipynb
 retreino/*.csv
 retreino/*.log
+
+# MLOps local: modelo campeão publicado, dados do Airflow e segredos do compose
+mlflow/producao/*
+!mlflow/producao/.gitkeep
+retreino/airflow/
+docker/.env
+
+# MLflow local (sem Docker): banco SQLite e artefatos
+mlflow/local/
