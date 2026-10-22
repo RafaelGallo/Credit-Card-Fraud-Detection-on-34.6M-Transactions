@@ -41,8 +41,7 @@ Before building any detection model, the business needs to understand **where th
 
 # Importação das bibliotecas
 import os
-import shutil
-import zipfile
+from pathlib import Path
 import shutil
 import subprocess
 
@@ -52,8 +51,6 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-from google.colab import userdata
 
 COR_PRIMARIA = "#0072B2"    # main series / série principal
 COR_SECUNDARIA = "#94A3B8"  # neutral support / apoio neutro
@@ -73,58 +70,37 @@ plt.rcParams.update({
     "axes.prop_cycle": plt.cycler(color=PALETA),
 })
 
-"""# **Part 2 - API Kaggle**"""
+"""# **Part 2 - Local paths**"""
 
-# kaggle token from Colab secrets / token do Kaggle nos secrets do Colab
-os.environ["KAGGLE_API_TOKEN"] = userdata.get("kaggle_api")
+"""Local folders, relative to the repository root.
 
-# output folder / pasta de saída
-DATA_DIR = r"/content/data"
-os.makedirs(DATA_DIR, exist_ok=True)
+Pastas locais, relativas à raiz do repositório.
+"""
 
-# check free disk space before download / checar espaço livre em disco antes do download
-free_gb = shutil.disk_usage(r"/content").free / 1e9
-print(f"Free disk: {free_gb:.1f} GB")
+# works whether Jupyter starts in notebook/ or in the repository root / funciona se o Jupyter abrir em notebook/ ou na raiz
+RAIZ = Path.cwd().parent if Path.cwd().name == "notebook" else Path.cwd()
 
-# download only the csv file and unzip / baixar só o arquivo csv e descompactar
-subprocess.run(
-    [
-        "kaggle", "datasets", "download",
-        "-d", "karthikgangula/credit-card-fraud-mega-dataset",
-        "-f", "credit_card_fraud.csv",
-        "-p", DATA_DIR,
-        "--unzip",
-    ],
-    check=True,
-)
+DATA_DIR = RAIZ / "input"  # raw dataset and Parquet / base bruta e Parquet
 
-# confirm file size / confirmar tamanho do arquivo
-csv_path = os.path.join(DATA_DIR, "credit_card_fraud.csv")
+CSV_PATH = str(DATA_DIR / "credit_card_fraud.csv")
+PARQUET_PATH = str(DATA_DIR / "credit_card_fraud_full.parquet")
+
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+print("Root / Raiz:", RAIZ)
+print(f"Free disk / Espaço livre: {shutil.disk_usage(RAIZ).free / 1e9:.1f} GB")
 
 """# **Part 3 - Database**"""
 
-"""Unzip the Kaggle download and confirm the CSV exists.
+"""Confirm the dataset is in input/ (no download needed locally).
 
-Descompacta o download do Kaggle e confirma que o CSV existe.
+Confirma que a base está em input/ (não precisa baixar localmente).
 """
 
-# paths / caminhos
-DATA_DIR = r"/content/data"
-zip_path = r"/content/data/credit_card_fraud.csv.zip"
-csv_path = r"/content/data/credit_card_fraud.csv"
-
-# zip size and free disk before extracting / tamanho do zip e espaço livre antes de extrair
-print(f"Zip size: {os.path.getsize(zip_path) / 1e9:.2f} GB")
-print(f"Free disk: {shutil.disk_usage(r'/content').free / 1e9:.1f} GB")
-
-# list zip content and extract / listar conteúdo do zip e extrair
-with zipfile.ZipFile(zip_path) as zf:
-    for info in zf.infolist():
-        print(info.filename, f"{info.file_size / 1e9:.2f} GB")
-    zf.extractall(DATA_DIR)
-
-# confirm the extracted file / confirmar o arquivo extraído
-print(f"File size: {os.path.getsize(csv_path) / 1e9:.2f} GB")
+csv_path = CSV_PATH
+if not os.path.exists(csv_path):
+    raise FileNotFoundError(f"Put credit_card_fraud.csv in / Coloque credit_card_fraud.csv em {DATA_DIR}")
+print(f"File size / Tamanho do arquivo: {os.path.getsize(csv_path) / 1e9:.2f} GB")
 
 """# **Part 4 - Pré-processamento**"""
 
@@ -134,7 +110,7 @@ Checa nomes e tipos das colunas nas primeiras linhas do CSV.
 """
 
 # read only 1000 rows, instant even on an 11 GB file / ler só 1000 linhas, instantâneo mesmo em arquivo de 11 GB
-amostra = pl.read_csv(r"/content/data/credit_card_fraud.csv", n_rows=1000)
+amostra = pl.read_csv(CSV_PATH, n_rows=1000)
 print(amostra.shape)
 print(amostra.schema)
 
@@ -151,8 +127,8 @@ Converte o CSV completo para Parquet mantendo só as colunas de análise.
 """
 
 # input and output paths / caminhos de entrada e saída
-csv_path = r"/content/data/credit_card_fraud.csv"
-parquet_path = r"/content/credit_card_fraud_full.parquet"
+csv_path = CSV_PATH
+parquet_path = PARQUET_PATH
 
 # columns kept, personal identifiers are dropped / colunas mantidas, identificadores pessoais removidos
 keep_cols = [
@@ -182,7 +158,7 @@ import polars as pl
 pl.Config.set_tbl_cols(-1)
 
 # lazy handle on the Parquet file / ponteiro lazy para o arquivo Parquet
-lazy = pl.scan_parquet(r"/content/credit_card_fraud_full.parquet")
+lazy = pl.scan_parquet(PARQUET_PATH)
 
 # row count and column types / contagem de linhas e tipos das colunas
 print("Rows / Linhas:", lazy.select(pl.len()).collect().item())
@@ -201,7 +177,7 @@ Conta valores nulos por coluna no arquivo Parquet completo.
 pl.Config.set_tbl_rows(30)
 
 # fresh handle on the raw Parquet, independent of earlier filters / ponteiro novo para o Parquet bruto, independente de filtros anteriores
-base_bruta = pl.scan_parquet(r"/content/credit_card_fraud_full.parquet")
+base_bruta = pl.scan_parquet(PARQUET_PATH)
 n_total = base_bruta.select(pl.len()).collect().item()
 
 # one row per column with null count and percentage / uma linha por coluna com contagem e porcentagem de nulos
@@ -229,7 +205,7 @@ Checa se algum id de transação aparece mais de uma vez.
 
 # hash to 64 bits keeps memory low, collisions are practically impossible / hash de 64 bits economiza memória, colisões são praticamente impossíveis
 ids = (
-    pl.scan_csv(r"/content/data/credit_card_fraud.csv", infer_schema_length=10000)
+    pl.scan_csv(CSV_PATH, infer_schema_length=10000)
     .select(pl.col("trans_num").hash(seed=0).alias("h"))
 )
 
@@ -597,7 +573,7 @@ Compara o trans_time original com o horário UTC criado a partir do unix_time.
 """
 
 teste = pl.read_csv(
-    r"/content/data/credit_card_fraud.csv",
+    CSV_PATH,
     n_rows=1000,
     columns=["trans_date", "trans_time", "unix_time", "state"],
 ).with_columns(pl.from_epoch("unix_time", time_unit="s").alias("utc"))
