@@ -28,6 +28,28 @@ LIMITES = {
 }
 
 
+CAMINHO_BASE = RAIZ / "input" / "credit_card_fraud.csv"  # base completa (~10 GB), só existe na máquina local
+
+
+def amostrar_base(n: int, caminho: Path = CAMINHO_BASE, semente: int = 42, tamanho_bloco: int = 1_000_000) -> pd.DataFrame:
+    """Sorteia n transações da base completa, lendo em blocos e só as colunas do modelo + is_fraud.
+
+    As colunas pessoais da base (ssn, cc_num, nome, endereço) nunca são carregadas.
+    """
+    colunas = ["amt", "city_pop", "lat", "long", "merch_lat", "merch_long", "category", "gender", "state", "is_fraud"]
+    tamanho_linha = max(len(linha) for linha in caminho.open("rb").readlines(200_000)) / 1.5  # bytes por linha, aproximado
+    total_estimado = caminho.stat().st_size / max(tamanho_linha, 1)
+    fracao = min(1.0, 1.5 * n / total_estimado)  # folga para depois cortar exatamente em n
+    partes = [
+        bloco.sample(frac=fracao, random_state=semente + i)
+        for i, bloco in enumerate(pd.read_csv(caminho, usecols=colunas, chunksize=tamanho_bloco))
+    ]
+    amostra = pd.concat(partes, ignore_index=True)
+    if len(amostra) > n:
+        amostra = amostra.sample(n=n, random_state=semente)
+    return amostra.reset_index(drop=True)
+
+
 def carregar_pacote(caminho: Path = CAMINHO_MODELO) -> dict:
     """Carrega o pacote salvo no notebook (modelo, limiar, codificador, colunas)."""
     return joblib.load(caminho)

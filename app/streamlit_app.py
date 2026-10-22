@@ -109,6 +109,12 @@ def carregar_pacote() -> dict:
     return ml.carregar_pacote()
 
 
+@st.cache_data(show_spinner=False, max_entries=2)
+def sortear_base(n: int) -> bytes:
+    """Amostra da base local em CSV (só colunas do modelo + is_fraud); o resultado fica em cache."""
+    return ml.amostrar_base(n).to_csv(index=False).encode("utf-8")
+
+
 class ArquivoInvalido(ValueError):
     """Problema do arquivo enviado que o usuário consegue corrigir."""
 
@@ -305,9 +311,23 @@ def renderizar_lote() -> None:
         st.download_button("Baixar o arquivo de exemplo", ml.CAMINHO_EXEMPLO.read_bytes(),
                            file_name="transacoes_exemplo.csv", mime="text/csv")
 
+    if ml.CAMINHO_BASE.exists():  # só na máquina local: a base completa (~10 GB) não vai para o deploy
+        st.markdown("**Base de dados local** (`input/credit_card_fraud.csv`)")
+        b1, b2 = st.columns([1, 1])
+        n_base = b1.number_input("Transações a sortear", min_value=1_000, max_value=MAX_LINHAS, value=50_000, step=10_000)
+        b2.write("")
+        if b2.button("Sortear da base (leva ~1 min)"):
+            with st.spinner("Lendo a base completa em blocos..."):
+                st.session_state["amostra_base"] = sortear_base(int(n_base))
+        if "amostra_base" in st.session_state:
+            st.caption(f"Usando a amostra sorteada da base ({inteiro(len(st.session_state['amostra_base'].splitlines()) - 1)} "
+                       "transações, com `is_fraud`). Enviar um arquivo substitui a amostra.")
+
     conteudo = None
     if arquivo is not None:
         conteudo = arquivo.getvalue()
+    elif "amostra_base" in st.session_state:
+        conteudo = st.session_state["amostra_base"]
     elif usar_exemplo and ml.CAMINHO_EXEMPLO.exists():
         conteudo = ml.CAMINHO_EXEMPLO.read_bytes()
 
