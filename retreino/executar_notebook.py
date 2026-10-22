@@ -42,9 +42,20 @@ CELULAS_IGNORADAS_POR_CONTEUDO = ("kaggle", "datasets", "download")  # cell do d
 UNZIP = "zipfile.ZipFile(zip_path)"
 
 
+# o notebook agora usa pastas locais; aqui as saídas são desviadas para retreino/ (models/ não é tocado)
+REDIRECIONAR = {
+    "MODELOS_DIR": 'MODELOS_DIR = Path(r"%s")' % (SAIDA / "modelos").as_posix(),
+    "OUTPUT_DIR": 'OUTPUT_DIR = Path(r"%s")' % SAIDA.as_posix(),
+    "PARQUET_PATH": 'PARQUET_PATH = r"%s"' % (SAIDA / "dados" / "credit_card_fraud_full.parquet").as_posix(),
+}
+
+
 def adaptar(codigo: str) -> str:
     if all(t in codigo for t in CELULAS_IGNORADAS_POR_CONTEUDO) or UNZIP in codigo:
         return "pass  # ignorado no local: o CSV já está em input/"
+    for nome, linha in REDIRECIONAR.items():
+        codigo = re.sub(rf"^{nome} = .*$", lambda _: linha, codigo, flags=re.M)
+    codigo = codigo.replace('RESULTADOS_DIR = MODELOS_DIR / "resultados"', 'RESULTADOS_DIR = MODELOS_DIR.parent / "resultados"')
     for antigo, novo in SUBSTITUICOES:
         codigo = codigo.replace(antigo, novo)
     linhas = [("pass  # ignorado no local" if LINHAS_IGNORADAS.search(l) else l) for l in codigo.splitlines()]
