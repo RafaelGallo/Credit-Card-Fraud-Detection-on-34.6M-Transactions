@@ -224,3 +224,12 @@ __marimo__/
 input/
 models/*
 !models/modelo_final.joblib
+
+# Saídas do retreino local (dados, modelos, notebook executado)
+retreino/dados/
+retreino/modelos/
+retreino/resultados/
+retreino/modelo_final/
+retreino/*.ipynb
+retreino/*.csv
+retreino/*.log
