@@ -242,3 +242,17 @@ docker/.env
 
 # MLflow local (sem Docker): banco SQLite e artefatos
 mlflow/local/
+
+# Saídas pesadas de execuções locais (não versionar: o GitHub recusa arquivos acima de 100 MB)
+mlfow/dados/
+mlfow/modelos/
+mlfow/resultados/
+mlfow/modelo_final/
+mlfow/*.ipynb
+mlfow/*.csv
+mlfow/*.log
+catboost_info/
+**/catboost_info/
+output/*_previstas.csv
+output/alertas_de_fraude.csv
+output/transacoes_com_score.csv

@@ -20,9 +20,15 @@ from nbclient import NotebookClient
 
 RAIZ = Path(__file__).resolve().parent.parent
 SAIDA = RAIZ / "retreino"
-ORIGINAL = RAIZ / "notebook" / "Credit_Card_Fraud_Mega___Model_ML.ipynb"
-EXECUTADO = SAIDA / "Model_ML_executado.ipynb"
-LOG = SAIDA / "progresso.log"
+# python retreino/executar_notebook.py [modelagem|eda]
+NOTEBOOKS = {
+    "modelagem": ("Credit_Card_Fraud_Mega___Model_ML.ipynb", "Model_ML_executado.ipynb", "progresso.log"),
+    "eda": ("Credit_Card_Fraud_Mega___Exploratory_Data_Analysis.ipynb", "EDA_executado.ipynb", "progresso_eda.log"),
+}
+_NOME = sys.argv[1] if len(sys.argv) > 1 else "modelagem"
+ORIGINAL = RAIZ / "notebook" / NOTEBOOKS[_NOME][0]
+EXECUTADO = SAIDA / NOTEBOOKS[_NOME][1]
+LOG = SAIDA / NOTEBOOKS[_NOME][2]
 
 CSV = (RAIZ / "input" / "credit_card_fraud.csv").as_posix()
 SUBSTITUICOES = [
