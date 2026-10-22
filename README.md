@@ -16,6 +16,9 @@
 ![Data](https://img.shields.io/badge/Data-synthetic-lightgrey)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
+![](https://github.com/RafaelGallo/Credit-Card-Fraud-Detection-on-34.6M-Transactions/blob/main/img/Fluxo%20de%20Dados%20e%20Escudo%20Digital.png?raw=true)
+
+
 An end-to-end data science project: exploratory analysis, a fraud classifier, a Streamlit app, and an MLOps pipeline with
 Airflow, MLflow and Docker. The goal is to **score every transaction at authorization time**, so the fraud team reviews
 only the highest-risk ones.
